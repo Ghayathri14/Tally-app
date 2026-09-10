@@ -1,0 +1,9 @@
+{
+  "name": "Tally — subscription tracker",
+  "short_name": "Tally",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EEF1EC",
+  "theme_color": "#1E2A22",
+  "icons": []
+}

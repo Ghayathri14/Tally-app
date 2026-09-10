@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tally — subscription tracker</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E2A22">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,450;9..144,560;9..144,650&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #EEF1EC;
+    --surface: #FFFFFF;
+    --surface-alt: #E3E8E0;
+    --ink: #1E2A22;
+    --ink-soft: #5B6B5F;
+    --ink-faint: #8B9A8F;
+    --gold: #A9752B;
+    --gold-soft: #F1E4CC;
+    --teal: #3F6659;
+    --danger: #B3462C;
+    --line: #D7DED2;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; padding-bottom: 100px; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 28px 20px 40px; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 32px; }
+  .wordmark { font-family: 'Fraunces', serif; font-weight: 560; font-size: 22px; letter-spacing: -0.01em; }
+  .wordmark span { color: var(--gold); }
+  .header-sub { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+  .signout { font-size: 12px; color: var(--ink-faint); background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0; }
+
+  .hero { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; margin-bottom: 28px; }
+  .hero-label { font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
+  .hero-amount { font-family: 'Fraunces', serif; font-weight: 560; font-size: 44px; line-height: 1; letter-spacing: -0.02em; }
+  .hero-amount small { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; color: var(--ink-soft); margin-left: 6px; }
+  .hero-meta { display: flex; gap: 24px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .hero-meta-item .num { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 560; }
+  .hero-meta-item .lbl { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+
+  .section-title { font-size: 14px; font-weight: 600; color: var(--ink); margin: 0 0 12px 2px; }
+  .ledger { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--line); position: relative; }
+  .row:last-child { border-bottom: none; }
+  .row.soon { box-shadow: inset 3px 0 0 var(--gold); }
+  .row-date { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 560; width: 52px; flex-shrink: 0; color: var(--ink-soft); line-height: 1.15; }
+  .row-date .day { display: block; font-size: 20px; color: var(--ink); }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-cycle { font-size: 12px; color: var(--ink-faint); margin-top: 1px; }
+  .row-cost { font-size: 15px; font-weight: 600; flex-shrink: 0; text-align: right; }
+  .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+  .icon-btn:hover { background: var(--surface-alt); }
+  .icon-btn.renew:hover { color: var(--teal); border-color: var(--teal); }
+  .icon-btn.remove:hover { color: var(--danger); border-color: var(--danger); }
+
+  .empty { text-align: center; padding: 48px 24px; color: var(--ink-soft); }
+  .empty .big { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); margin-bottom: 6px; }
+  .empty p { font-size: 14px; margin: 0; }
+
+  .fab { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); border: none; border-radius: 999px; padding: 14px 26px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 8px 24px rgba(30,42,34,0.25); }
+  .fab:active { transform: translateX(-50%) scale(0.97); }
+
+  .scrim { position: fixed; inset: 0; background: rgba(20,26,22,0.4); opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 10; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-radius: 18px 18px 0 0; padding: 22px 20px calc(24px + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); z-index: 11; max-width: 620px; margin: 0 auto; box-shadow: 0 -8px 30px rgba(0,0,0,0.15); }
+  .sheet.open { transform: translateY(0); }
+  .sheet-handle { width: 36px; height: 4px; background: var(--line); border-radius: 4px; margin: 0 auto 18px; }
+  .sheet-title { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 560; margin-bottom: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+  .field input, .field select { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 15px; background: var(--bg); color: var(--ink); appearance: none; }
+  .field input:focus, .field select:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
+  .row2 { display: flex; gap: 12px; }
+  .row2 .field { flex: 1; }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .btn { flex: 1; padding: 13px; border-radius: 8px; border: none; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-secondary { background: var(--surface-alt); color: var(--ink); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: all 0.25s ease; pointer-events: none; z-index: 20; text-align: center; max-width: 85vw; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .loading { text-align: center; padding: 60px 20px; color: var(--ink-faint); font-size: 14px; }
+
+  /* Auth screen */
+  .auth-screen { max-width: 380px; margin: 15vh auto 0; padding: 0 24px; text-align: center; }
+  .auth-screen .wordmark { font-size: 30px; justify-content: center; margin-bottom: 6px; }
+  .auth-screen .header-sub { margin-bottom: 32px; font-size: 14px; }
+  .auth-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; text-align: left; }
+  .auth-card p { font-size: 13px; color: var(--ink-soft); margin: 10px 0 0; }
+  .auth-sent { text-align: center; padding: 10px 0; }
+  .auth-sent .big { font-family: 'Fraunces', serif; font-size: 18px; margin-bottom: 6px; }
+
+  @media (max-width: 400px) { .hero-amount { font-size: 38px; } }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="loading">Loading…</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   1. CONFIG — replace these two values with your own from
+      Supabase → Project Settings → API, then re-upload.
+   ========================================================= */
+const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+/* ========================================================= */
+
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const app = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+
+let session = null;
+let subs = [];
+
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function money(n){
+  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+}
+
+function daysUntil(dateStr){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + 'T00:00:00');
+  return Math.round((d - today) / 86400000);
+}
+
+function monthlyEquivalent(sub){
+  return sub.cycle === 'yearly' ? sub.cost / 12 : sub.cost;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---------- Auth screen ---------- */
+function renderAuth(sent){
+  app.innerHTML = `
+    <div class="auth-screen">
+      <div class="wordmark">Tally<span>.</span></div>
+      <div class="header-sub">what your subscriptions actually cost</div>
+      <div class="auth-card">
+        ${sent ? `
+          <div class="auth-sent">
+            <div class="big">Check your email</div>
+            <p>We sent a sign-in link to ${escapeHtml(sent)}. Open it on this device to continue.</p>
+          </div>
+        ` : `
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="you@example.com" required>
+          </div>
+          <button class="btn btn-primary" id="sendLink" style="width:100%">Send sign-in link</button>
+          <p>No password needed — we'll email you a link to sign in.</p>
+        `}
+      </div>
+    </div>
+  `;
+  if (!sent) {
+    document.getElementById('sendLink').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      if (!email) return;
+      const btn = document.getElementById('sendLink');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      const { error } = await supa.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin }
+      });
+      if (error) {
+        showToast(error.message);
+        btn.disabled = false;
+        btn.textContent = 'Send sign-in link';
+      } else {
+        renderAuth(email);
+      }
+    });
+  }
+}
+
+/* ---------- Main app ---------- */
+async function loadSubs(){
+  const { data, error } = await supa
+    .from('subscriptions')
+    .select('*')
+    .order('next_date', { ascending: true });
+  if (error) {
+    showToast("Couldn't load your subscriptions");
+    subs = [];
+  } else {
+    subs = data;
+  }
+  renderApp();
+}
+
+function renderApp(){
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const totalMonthly = subs.reduce((sum, s) => sum + monthlyEquivalent(s), 0);
+  const soonCount = subs.filter(s => daysUntil(s.next_date) <= 3 && daysUntil(s.next_date) >= 0).length;
+
+  let listHtml;
+  if (subs.length === 0) {
+    listHtml = `
+      <div class="ledger">
+        <div class="empty">
+          <div class="big">Nothing tracked yet</div>
+          <p>Add the first subscription you want to keep an eye on.</p>
+        </div>
+      </div>`;
+  } else {
+    listHtml = `<div class="section-title">Upcoming renewals</div><div class="ledger">`;
+    for (const s of subs) {
+      const days = daysUntil(s.next_date);
+      const d = new Date(s.next_date + 'T00:00:00');
+      const isSoon = days <= 3 && days >= 0;
+      listHtml += `
+        <div class="row ${isSoon ? 'soon' : ''}">
+          <div class="row-date"><span class="day">${d.getDate()}</span>${monthNames[d.getMonth()]}</div>
+          <div class="row-main">
+            <div class="row-name">${escapeHtml(s.name)}</div>
+            <div class="row-cycle">${s.cycle} · ${days < 0 ? 'overdue' : days === 0 ? 'today' : `in ${days}d`}</div>
+          </div>
+          <div class="row-cost">${money(s.cost)}</div>
+          <div class="row-actions">
+            <button class="icon-btn renew" title="Mark renewed" data-action="renew" data-id="${s.id}">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn remove" title="Remove" data-action="remove" data-id="${s.id}">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4H12M5 4V2.5C5 2 5.4 1.6 5.9 1.6H8.1C8.6 1.6 9 2 9 2.5V4M5.6 4V11.5C5.6 12 6 12.4 6.5 12.4H7.5C8 12.4 8.4 12 8.4 11.5V4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>`;
+    }
+    listHtml += `</div>`;
+  }
+
+  app.innerHTML = `
+    <div class="wrap">
+      <header>
+        <div>
+          <div class="wordmark">Tally<span>.</span></div>
+          <div class="header-sub">what your subscriptions actually cost</div>
+        </div>
+        <button class="signout" id="signOut">Sign out</button>
+      </header>
+      <div class="hero">
+        <div class="hero-label">You're spending</div>
+        <div class="hero-amount">${money(totalMonthly)}<small>/ month</small></div>
+        <div class="hero-meta">
+          <div class="hero-meta-item"><div class="num">${subs.length}</div><div class="lbl">${subs.length === 1 ? 'subscription' : 'subscriptions'}</div></div>
+          <div class="hero-meta-item"><div class="num">${soonCount}</div><div class="lbl">renewing within 3 days</div></div>
+          <div class="hero-meta-item"><div class="num">${money(totalMonthly * 12)}</div><div class="lbl">per year</div></div>
+        </div>
+      </div>
+      ${listHtml}
+    </div>
+
+    <button class="fab" id="openAdd">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Add subscription
+    </button>
+
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Add a subscription</div>
+      <form id="subForm">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" placeholder="Netflix, Spotify, gym…" required>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="cost">Cost</label>
+            <input type="number" id="cost" step="0.01" min="0" placeholder="0.00" required>
+          </div>
+          <div class="field">
+            <label for="cycle">Billed</label>
+            <select id="cycle">
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="nextDate">Next renewal date</label>
+          <input type="date" id="nextDate" required>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn btn-secondary" id="cancelSheet">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.getElementById('signOut').addEventListener('click', async () => {
+    await supa.auth.signOut();
+  });
+
+  document.querySelectorAll('[data-action="renew"]').forEach(btn => {
+    btn.addEventListener('click', () => renewSub(btn.dataset.id));
+  });
+  document.querySelectorAll('[data-action="remove"]').forEach(btn => {
+    btn.addEventListener('click', () => removeSub(btn.dataset.id));
+  });
+
+  const sheet = document.getElementById('sheet');
+  const scrim = document.getElementById('scrim');
+  const openSheet = () => {
+    document.getElementById('subForm').reset();
+    document.getElementById('nextDate').value = new Date().toISOString().slice(0,10);
+    scrim.classList.add('open');
+    sheet.classList.add('open');
+  };
+  const closeSheet = () => { scrim.classList.remove('open'); sheet.classList.remove('open'); };
+
+  document.getElementById('openAdd').addEventListener('click', openSheet);
+  document.getElementById('cancelSheet').addEventListener('click', closeSheet);
+  scrim.addEventListener('click', closeSheet);
+
+  document.getElementById('subForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('name').value.trim();
+    const cost = parseFloat(document.getElementById('cost').value);
+    const cycle = document.getElementById('cycle').value;
+    const nextDate = document.getElementById('nextDate').value;
+    if (!name || isNaN(cost) || !nextDate) return;
+
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+
+    const { error } = await supa.from('subscriptions').insert({
+      name, cost, cycle, next_date: nextDate, user_id: session.user.id
+    });
+
+    if (error) {
+      showToast("Couldn't save — try again");
+      saveBtn.disabled = false;
+      return;
+    }
+    closeSheet();
+    showToast(`${name} added`);
+    await loadSubs();
+  });
+}
+
+async function renewSub(id){
+  const sub = subs.find(s => s.id === id);
+  if (!sub) return;
+  const d = new Date(sub.next_date + 'T00:00:00');
+  if (sub.cycle === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1);
+  const newDate = d.toISOString().slice(0,10);
+
+  const { error } = await supa.from('subscriptions').update({ next_date: newDate }).eq('id', id);
+  if (error) { showToast("Couldn't update"); return; }
+  showToast(`${sub.name} renewed — next date updated`);
+  await loadSubs();
+}
+
+async function removeSub(id){
+  const sub = subs.find(s => s.id === id);
+  if (!sub) return;
+  if (!confirm(`Remove ${sub.name}?`)) return;
+
+  const { error } = await supa.from('subscriptions').delete().eq('id', id);
+  if (error) { showToast("Couldn't remove"); return; }
+  showToast(`${sub.name} removed`);
+  await loadSubs();
+}
+
+/* ---------- Boot ---------- */
+async function init(){
+  const { data } = await supa.auth.getSession();
+  session = data.session;
+
+  supa.auth.onAuthStateChange((event, newSession) => {
+    session = newSession;
+    if (session) loadSubs();
+    else renderAuth();
+  });
+
+  if (session) {
+    await loadSubs();
+  } else {
+    renderAuth();
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
